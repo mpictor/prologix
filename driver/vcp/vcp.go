@@ -8,6 +8,7 @@ package vcp
 import (
 	"io"
 	"strings"
+	"time"
 
 	"go.bug.st/serial"
 )
@@ -22,8 +23,9 @@ type VCP struct {
 func NewVCP(serialPort string) (*VCP, error) {
 	mode := &serial.Mode{
 		BaudRate: 115200,
-		Parity:   serial.EvenParity,
-		DataBits: 7,
+		//Parity:   serial.EvenParity,
+		Parity:   serial.NoParity,
+		DataBits: 8,
 		StopBits: serial.OneStopBit,
 	}
 	port, err := serial.Open(serialPort, mode)
@@ -65,4 +67,9 @@ func (vcp *VCP) Flush() error {
 func (vcp *VCP) WriteString(s string) (n int, err error) {
 	s = strings.TrimSpace(s) + "\n"
 	return io.WriteString(vcp.port, s)
+}
+
+// set read timeout, after which EOF is returned
+func (vcp *VCP) SetReadTimeout(d time.Duration) error {
+	return vcp.port.SetReadTimeout(d)
 }

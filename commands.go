@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"unicode"
 )
 
 // AssertEOI determines if the Prologix controller is configured to assert the
@@ -80,14 +81,58 @@ func (c *Controller) InstrumentAddress() (int, error) {
 	if err != nil {
 		return 0, err
 	}
-	i, err := strconv.ParseInt(strings.TrimSpace(s), 10, 32)
+	s = strings.TrimSpace(s)
+	idx := 0
+	for i, c := range s {
+		if !unicode.IsNumber(c) {
+			idx = i
+			break
+		}
+	}
+	if idx == 0 {
+		idx = len(s)
+	}
+	i, err := strconv.ParseInt(s[:idx], 10, 8)
 	if err != nil {
+		// buf := make([]byte, 1024)
+		// _, rerr := c.Read(buf)
+		// if rerr != nil {
+		// 	return 0, fmt.Errorf("errors %w %w", err, rerr)
+		// } else {
+		// 	log.Printf("read %q", string(buf))
+		// }
 		return 0, err
 	}
 	addr := int(i)
-	if addr != c.instrumentAddr {
-		c.instrumentAddr = addr
-		return addr, fmt.Errorf("internal state mismatch, address is now %d", addr)
+
+	var errs []any // required by Errorf
+
+	if idx < len(s) {
+		// secondary address?
+		switch s[idx] {
+		case ' ', '\t', ':', ',':
+		default:
+			return 0, fmt.Errorf("unexpected character %q parsing address response %s", s[i], s)
+		}
+		i, err := strconv.ParseInt(s[idx+1:], 10, 8)
+		if err != nil {
+			return 0, fmt.Errorf("parsing secondary address in %s: %w", s, err)
+		}
+		if c.secondaryAddr != int(i) {
+			errs = append(errs,
+				fmt.Errorf("internal state mismatch, secondary address was %d now %d", c.secondaryAddr, i))
+			c.secondaryAddr = int(i)
+		}
+	}
+	if addr != c.primaryAddr {
+		errs = append(errs,
+			fmt.Errorf("internal state mismatch, primary address was %d now %d", c.primaryAddr, addr))
+		c.primaryAddr = addr
+	}
+	if len(errs) > 0 {
+		fmtStr := strings.TrimRight(strings.Repeat("%w | ", len(errs)), " |")
+		err := fmt.Errorf(fmtStr, errs...)
+		return addr, err
 	}
 	return addr, nil
 }
@@ -190,7 +235,7 @@ func (c *Controller) SetInstrumentAddress(addr int) error {
 	if err != nil {
 		return err
 	}
-	c.instrumentAddr = addr
+	c.primaryAddr = addr
 	return nil
 }
 
