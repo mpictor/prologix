@@ -11,6 +11,7 @@ import (
 	"io"
 	"log"
 	"strings"
+	"time"
 )
 
 // Controller models a GPIB controller-in-charge.
@@ -25,10 +26,20 @@ type Controller struct {
 	eotChar          byte
 	debug            bool // if true, print controller commands before sending. Set via WithDebug().
 	ar488            bool // compatibility with Arduino AR488 - see WithAR488 documentation for details.
+	// note: only initialized by WithWriteDelay option - always check if nil
+	dly <-chan time.Time
 }
 
 // ControllerOption applies an option to the controller.
 type ControllerOption func(*Controller)
+
+// enforces a delay between write operations, both
+// to the controller and to the device
+func WithWriteDelay(dly time.Duration) func(c *Controller) {
+	return func(c *Controller) {
+		c.dly = time.Tick(dly)
+	}
+}
 
 // NewController creates a GPIB controller-in-charge at the given address using
 // the given Prologix driver, which can either be a Virtual COM Port (VCP), USB
@@ -124,6 +135,9 @@ func WithAR488() ControllerOption { return func(c *Controller) { c.ar488 = true 
 // Write writes the given data to the instrument at the currently assigned GPIB
 // address.
 func (c *Controller) Write(p []byte) (n int, err error) {
+	if c.dly != nil {
+		<-c.dly
+	}
 	return c.rw.Write(p)
 }
 
@@ -138,6 +152,9 @@ func (c *Controller) Read(p []byte) (n int, err error) {
 func (c *Controller) WriteString(s string) (n int, err error) {
 	cmd := fmt.Sprintf("%s%c", strings.TrimSpace(s), c.usbTerm)
 	log.Printf("prologix driver writing string: %s", cmd)
+	if c.dly != nil {
+		<-c.dly
+	}
 	return c.rw.Write([]byte(cmd))
 }
 
@@ -158,6 +175,9 @@ func (c *Controller) Command(format string, a ...any) error {
 	if c.debug {
 		log.Printf("cmd %q (%x)", cmd, cmd)
 	}
+	if c.dly != nil {
+		<-c.dly
+	}
 	_, err := fmt.Fprint(c.rw, cmd)
 	return err
 }
@@ -173,7 +193,18 @@ func (c *Controller) Command(format string, a ...any) error {
 func (c *Controller) Query(cmd string) (string, error) {
 	cmd = fmt.Sprintf("%s%c", strings.TrimSpace(cmd), c.usbTerm)
 	if c.debug {
+		var start time.Time
+		start = time.Now()
 		log.Printf("query: %q", cmd)
+		defer func() {
+			d := time.Since(start)
+			if d > time.Second/2 {
+				log.Printf("elapsed time: %s", d)
+			}
+		}()
+	}
+	if c.dly != nil {
+		<-c.dly
 	}
 	_, err := fmt.Fprint(c.rw, cmd)
 	if err != nil {
@@ -183,6 +214,9 @@ func (c *Controller) Query(cmd string) (string, error) {
 	// read.
 	if !c.auto {
 		readCmd := "++read eoi"
+		if c.dly != nil {
+			<-c.dly
+		}
 		_, err = fmt.Fprintf(c.rw, "%s%c", readCmd, c.usbTerm)
 		if err != nil {
 			return "", fmt.Errorf("error sending `%s` command: %s", readCmd, err)
@@ -190,10 +224,21 @@ func (c *Controller) Query(cmd string) (string, error) {
 	}
 	s, err := bufio.NewReader(c.rw).ReadString(c.eotChar)
 	if err == io.EOF {
-		log.Printf("found EOF")
+		if c.debug {
+			log.Printf("found EOF")
+		}
 		return s, nil
 	}
 	return s, err
+}
+
+// MustQuery is like Query except any errors are treated as fatal.
+func (c *Controller) MustQuery(cmd string) string {
+	res, err := c.Query(cmd)
+	if err != nil {
+		log.Fatalf("query %q: error %s, response\n%s", cmd, res, err)
+	}
+	return res
 }
 
 // QueryController sends the given command to the Prologix controller and
@@ -221,6 +266,9 @@ func (c *Controller) CommandController(cmd string) error {
 	cmd = fmt.Sprintf("++%s%c", strings.ToLower(strings.TrimSpace(cmd)), c.usbTerm)
 	if c.debug {
 		log.Printf("cmd %q (%2x)", cmd, cmd)
+	}
+	if c.dly != nil {
+		<-c.dly
 	}
 	_, err := c.rw.Write([]byte(cmd))
 	return err
