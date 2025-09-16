@@ -1,0 +1,88 @@
+:root {
+    /* --graticule-color: #820; */
+    --graticule-color: rgba(255, 123, 0, 0.473);
+    /* --graticule-color: #d55; */
+    --traceedge0-color: #11ff0034;
+    --traceedge0-width: 5;
+    --traceedge1-color: #11ff005e;
+    --traceedge1-width: 3;
+    --trace-color: #1f0;
+    --trace-width: 1;
+    --legend-color: white;
+    --logo-color: #086cdd;
+    /* --logo-color: #98b7db; */
+}
+
+body {
+    font-family: Arial, sans-serif;
+    background-color: #21332c;
+    color: #038f59;
+    text-align: center;
+    padding: 20px;
+}
+
+button {
+    background-color: #038f59;
+    color: white;
+    border: none;
+    padding: 10px 20px;
+    cursor: pointer;
+    font-size: 16px;
+    /* oscilloscope appearance */
+}
+
+canvas {
+    /* oscilloscope appearance */
+    border: 25px solid rgb(80, 85, 56);
+    background-color: #000000;
+}
+
+#refresh {
+    margin-top: 20px;
+}
+
+#left,
+#middle,
+#right {
+    display: inline-block;
+    zoom: 1;
+    vertical-align: bottom;
+}
+
+.l50,
+.r50 {
+    display: inline-block;
+    zoom: 1;
+    vertical-align: bottom;
+    max-width: 50%;
+    width: 49%
+}
+
+.model {
+    font-size: 44px;
+    font-weight: 900;
+    color: var(--logo-color);
+}
+
+.logo {
+    /* first two change the color */
+    /* filter: drop-shadow(0px 300px 0 var(--logo-color));
+    transform: translateY(-300px); */
+    width: 200px;
+    height: auto;
+}
+
+.slider-container {
+    margin-top: 20px;
+    text-align: center;
+}
+
+.slider-label {
+    color: rgb(133, 133, 133);
+    font-size: 14px;
+    margin-right: 10px;
+}
+
+.slider {
+    width: 300px;
+}

@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<!-- set dark bg color early to avoid confusing automagic color changers -->
+<html lang="en" style="background-color:#000;">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>7912AD</title>
+    <link rel='shortcut icon' href='/favicon.ico' type='image/vnd.microsoft.icon' />
+    <link rel='stylesheet' href='/style.css' />
+</head>
+
+<body>
+    <div class="header">
+        <div class="l50"><img src="Tek_logo_blue.png" class="logo" alt="Tektronix Logo"></div>
+        <span class="model r50">7912AD</span>
+    </div>
+    <canvas id="chart" width="800" height="600"></canvas>
+    <br>
+    <button id="refresh">Refresh</button>
+
+    <div class="slider-container">
+        <label class="slider-label" for="graticule-slider">Graticule Intensity:</label>
+        <input type="range" id="graticule-slider" class="slider" min="0" max="1" step="0.01" value="0.473">
+    </div>
+    <div class="slider-container">
+        <label class="slider-label" for="trace-slider">Trace Intensity:</label>
+        <input type="range" id="trace-slider" class="slider" min="0" max="3" step="0.01" value="1">
+    </div>
+
+
+    <script src="frontend.js"></script>
+</body>
+
+</html>
