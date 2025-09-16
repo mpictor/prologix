@@ -37,11 +37,20 @@ func (c *Conn) AddFlags() {
 		"/dev/"+c.tty,
 		"Serial port for Prologix VCP GPIB controller",
 	)
+	if c.GpibPAD == 0 {
+		c.GpibPAD = 4
+	}
+	if c.GpibSAD == 0 {
+		c.GpibSAD = 101
+	}
+	if c.Delay == 0 {
+		c.Delay = 100 * time.Millisecond
+	}
 
-	flag.IntVar(&c.GpibPAD, "pad", 4, "GPIB primary address for the 7912AD")
-	flag.IntVar(&c.GpibSAD, "sad", 101, "GPIB secondary address for the 7912AD")
-	flag.DurationVar(&c.Delay, "delay", 100*time.Millisecond, "delay between writes")
-	flag.BoolVar(&c.Diag, "diag", false, "xdiag and exit")
+	flag.IntVar(&c.GpibPAD, "pad", c.GpibPAD, "GPIB primary address for the device")
+	flag.IntVar(&c.GpibSAD, "sad", c.GpibSAD, "GPIB secondary address for the device")
+	flag.DurationVar(&c.Delay, "delay", c.Delay, "delay between writes")
+	flag.BoolVar(&c.Diag, "diag", c.Diag, "xdiag and exit")
 }
 
 // Setup is to be called after variables are initialized, i.e. after both [(Conn).DefineFlags] and [flag.Parse] are called.

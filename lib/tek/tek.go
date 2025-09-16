@@ -6,8 +6,10 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"math"
 	"os"
 	"slices"
+	"strings"
 )
 
 // Unpack unpacks tektronics gpib "pack" data
@@ -57,47 +59,87 @@ func Unpack(pack []byte) ([]uint16, error) {
 }
 
 func checksum(data []byte, expect byte) error {
-	// TODO
 	// 8-bit, 2's complement number that is modulo-256 sum of preceding bytes
 	var s = int(expect)
 	for _, c := range data {
 		s += int(c)
 	}
 	if s&0xff != 0 {
-		return fmt.Errorf("bad checksum %x", s&0xff)
+		return fmt.Errorf("bad checksum: got 0x%2x, expect 0", s&0xff)
 	}
 	return nil
 }
 
-type xy struct{ X, Y float32 }
+type Point struct{ X, Y float32 }
 
-func PtrVerToATC(ptr, ver []int) []xy {
-	var coords []xy
+func (p Point) String() string { return fmt.Sprintf("{%03.1f,%03.1f}", p.X, p.Y) }
+
+type Points []Point
+
+func (ps Points) String() string {
+	s := make([]string, 0, len(ps))
+	for _, p := range ps {
+		s = append(s, p.String())
+	}
+	return strings.Join(s, ",")
+}
+
+func PtrVerToATC(ptr, ver []uint16) Points {
+	var coords []Point
+	discards := 0
 	for i := range ptr {
-		// data points ptr[i]-1 through ptr[i+1]-1
-		first := ptr[i] - 1
-		var last int
-		if i == len(ptr)-1 {
-			last = len(ver) - 1
-		} else {
-			last = ptr[i+1] - 1
+		if ptr[i] == math.MaxUint16 {
+			// -1, i.e. no values - so discard
+			// does this mean intensity was too low?
+			discards++
+			continue
 		}
-		var points []int
-		for _, p := range ver[first:last] {
-			// defects will be negative, right?
-			if p >= 0 {
+		// WRONG data points ptr[i]-1 through ptr[i+1]-1
+		// first := ptr[i] - 1
+		// var last uint16
+		// if i == len(ptr)-1 {
+		// 	last = uint16(len(ver) - 1)
+		// } else {
+		// 	last = ptr[i+1] - 1
+		// }
+
+		// data points ptr[i-1]+1 through ptr[i]
+		var first uint16
+		if i > 0 {
+			first = ptr[i-1] + 1
+		} //else 0
+		last := ptr[i]
+
+		// if first == last {
+		// 	// or should we interpret this as the top and bottom edge are the same??
+		// 	log.Printf("ptr: skip 0-len range %d %d", i, first)
+		// 	continue
+		// }
+		var points []uint16
+		for _, p := range ver[first : last+1] {
+			if p <= 512 {
 				points = append(points, p)
 			}
+			// TODO instead of ignoring, draw defects a different color?
+		}
+		if len(points) == 0 {
+			continue
+		}
+		if len(points) != 2 {
+			log.Printf("warn: %d edges at %d", len(points), i)
 		}
 		//FIXME how to handle multiple points in column?
 		// just do max()-min()?
 		a := slices.Max(points)
 		b := slices.Min(points)
 		c := float32(a+b) / 2.0
-		if i > 15 {
-			fmt.Fprintf(os.Stderr, "%d: f=%d l=%d pts=%v a=%d b=%d c=%f X=%d Y=%f\n", i, first, last, points, a, b, c, i+1, c)
-		}
-		coords = append(coords, xy{X: float32(i + 1), Y: c})
+		// if i > 15 {
+		fmt.Fprintf(os.Stderr, "% 3d: f=%3d l=%3d pts=%v a=%3d b=%3d c=%04.1f {X=%d, Y=%04.1f}\n", i, first, last, points, a, b, c, i+1, c)
+		// }
+		coords = append(coords, Point{X: float32(i + 1), Y: c})
+	}
+	if discards > 0 {
+		log.Printf("ptr: discarded %d empty entries", discards)
 	}
 	return coords
 }

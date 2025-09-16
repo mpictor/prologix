@@ -48,6 +48,11 @@ func PrettyFuncs(gpib *prologix.Controller) (
 		q = CmdStyle.Render(q)
 
 		a = strings.TrimSuffix(a, "\n") //appended by ar488
+		if len(a) == 1 && a[0] == 0xff {
+			// 7912 replies with 0xff if a response is expected
+			// but the last command has no result
+			a = ""
+		}
 		if len(a) == 0 {
 			log.Print(R1Style.Render("<no response>"))
 			return
