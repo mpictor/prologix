@@ -10,6 +10,8 @@ import (
 	"strconv"
 	"strings"
 	"unicode"
+
+	"go.uber.org/multierr"
 )
 
 // AssertEOI determines if the Prologix controller is configured to assert the
@@ -75,11 +77,10 @@ func (c *Controller) GPIBTermination() (GpibTerm, error) {
 }
 
 // InstrumentAddress returns the GPIB address for the instrument under control.
-func (c *Controller) InstrumentAddress() (int, error) {
-	// FIXME(mdr): Need to update so that it can handle a secondary address.
+func (c *Controller) InstrumentAddress() (int, int, error) {
 	s, err := c.QueryController("addr")
 	if err != nil {
-		return 0, err
+		return 0, 0, err
 	}
 	s = strings.TrimSpace(s)
 	idx := 0
@@ -94,29 +95,18 @@ func (c *Controller) InstrumentAddress() (int, error) {
 	}
 	i, err := strconv.ParseInt(s[:idx], 10, 8)
 	if err != nil {
-		// buf := make([]byte, 1024)
-		// _, rerr := c.Read(buf)
-		// if rerr != nil {
-		// 	return 0, fmt.Errorf("errors %w %w", err, rerr)
-		// } else {
-		// 	log.Printf("read %q", string(buf))
-		// }
-		return 0, err
+		return 0, 0, err
 	}
 	addr := int(i)
 
-	var errs []any // required by Errorf
+	var errs []error
 
-	if idx < len(s) {
-		// secondary address?
-		switch s[idx] {
-		case ' ', '\t', ':', ',':
-		default:
-			return 0, fmt.Errorf("unexpected character %q parsing address response %s", s[i], s)
-		}
-		i, err := strconv.ParseInt(s[idx+1:], 10, 8)
+	// secondary address?
+	sec := strings.TrimLeft(s[idx:], " :,\t")
+	if len(sec) > 0 {
+		i, err := strconv.ParseInt(sec, 10, 8)
 		if err != nil {
-			return 0, fmt.Errorf("parsing secondary address in %s: %w", s, err)
+			return 0, 0, fmt.Errorf("parsing secondary address in %s: %w", s, err)
 		}
 		if c.secondaryAddr != int(i) {
 			errs = append(errs,
@@ -129,12 +119,8 @@ func (c *Controller) InstrumentAddress() (int, error) {
 			fmt.Errorf("internal state mismatch, primary address was %d now %d", c.primaryAddr, addr))
 		c.primaryAddr = addr
 	}
-	if len(errs) > 0 {
-		fmtStr := strings.TrimRight(strings.Repeat("%w | ", len(errs)), " |")
-		err := fmt.Errorf(fmtStr, errs...)
-		return addr, err
-	}
-	return addr, nil
+	merr := multierr.Combine(errs...) // result is nil if errs is empty
+	return c.primaryAddr, c.secondaryAddr, merr
 }
 
 // ReadAfterWrite determines if the Prologix controller is configured to
