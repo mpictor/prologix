@@ -86,11 +86,17 @@ func run(gpib *prologix.Controller) {
 	if err != nil {
 		log.Printf("error clearing device: %s", err)
 	}
+	a, b, err := gpib.InstrumentAddress()
+	if err != nil {
+		log.Printf("error: %s", err)
+	}
+	log.Printf("addr: %d:%d", a, b)
 
 	query, bquery, cmd := cmdlog.PrettyFuncs(gpib)
 
 	pquery := func(q string) []uint16 {
 		r := query(q)
+		r = strings.TrimSpace(r)
 		p, err := tek.Unpack([]byte(r))
 		if err != nil {
 			log.Printf("error: %s", err)
@@ -115,28 +121,58 @@ func run(gpib *prologix.Controller) {
 
 	// cmd("")
 	time.Sleep(time.Millisecond * 100)
-	gpib.Flush() // fixme make this impl actual interface reset command
+	// gpib.Flush() // fixme make this impl actual interface reset command
 
 	// NOTE ignores lowercase commands
 
 	bquery("ID?")  // ID TEK/7912AD,V77.1,F3.1;
-	bquery("VS1?") // VS1 +1.E+00;
-	cmd("MODE DIG")
-	cmd("TEST") // cmd or query?
-	cmd("GRI 40")
-	cmd("MAI 100")
-	cmd("FOC 16")
-	cmd("GRAT ON")
-	cmd("OPC ON") //TODO check SRQ for done status
-	cmd("DIG GRAT")
-	gpib.Flush()
+	bquery("VS1?") // VS1 +500.E-03;
+	bquery("HS1?") // HS1 NONE;
+	bquery("HS2?") // HS2 +500.E-12;
+	bquery("VU1?") // VU1 V;
+	bquery("HU1?") // HU1 NONE;
+	bquery("HU2?") // HU2 TODO;
+	bquery("MAI?")
+	bquery("GRI?")
+	bquery("FOC?")
+	bquery("LIMITS?")
+	bquery("ERR?")
+
+	// if true {
+	// 	return
+	// }
+
+	bquery("MODE DIG")
+	// cmd("TEST") // cmd or query?
+	log.Printf("sleep 2...")
+	time.Sleep(2 * time.Second)
+	// pquery("DIG DAT;READ PTR,VER") // NOTE we can't currently handle multiple responses, so do not issue two reads in one command
+	ptr := pquery("DIG DAT;READ PTR")
+	ver := pquery("READ VER")
+	// log.Printf("\nptr=%x\nver=%x", ptr, ver)
+	points := tek.PtrVerToATC(ptr, ver)
+	log.Printf("points: %s", points)
+
+	bquery("DUMP RAW")
+	if true {
+		return
+	}
+
+	// // cmd("GRI 40") //?
+	// cmd("MAI 448")
+	// cmd("FOC 32")
+	// cmd("GRAT ON")
+
+	// cmd("OPC ON") //TODO check SRQ for done status
+	// cmd("DIG GRAT")
+	// gpib.Flush()
 	log.Printf("sleep 20...") // FIXME query status instead of sleeping?
 	time.Sleep(20 * time.Second)
 	cmd("ATC")
 	bquery("READ ATC")
-	cmd("DIG DEF,2")   // digitize defects 16x (and average?)
-	bquery("READ PTR") // pointers array
-	bquery("READ VER") // vertical array
+	cmd("DIG DEF,2")   // digitize defects 2x (and average?)
+	pquery("READ PTR") // pointers array
+	pquery("READ VER") // vertical array
 	bquery("READ DEF") // defects
 
 	bquery("DIG DAT;READ PTR,VER")
