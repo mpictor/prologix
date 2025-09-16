@@ -59,6 +59,7 @@ func (c *Conn) Setup(opts []prologix.ControllerOption) (gpib *prologix.Controlle
 
 	if c.finderr != nil && c.SerialPort == "/dev/ttyACM0" {
 		// only print this if the port isn't overridden via flag
+		// FIXME not following the logic of ttyacm0 not being overridden...?
 		log.Printf("locating serial port failed, guessing: %s", c.finderr)
 	}
 
