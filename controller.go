@@ -15,6 +15,7 @@ import (
 
 // Controller models a GPIB controller-in-charge.
 type Controller struct {
+	Debug            bool // if true, print controller commands before sending
 	rw               io.ReadWriter
 	primaryAddr      int
 	hasSecondaryAddr bool
@@ -23,6 +24,7 @@ type Controller struct {
 	eoi              bool
 	usbTerm          byte
 	eotChar          byte
+	debug            bool // if true, print controller commands before sending. Set via WithDebug().
 }
 
 // ControllerOption applies an option to the controller.
@@ -101,6 +103,9 @@ func WithSecondaryAddress(addr int) ControllerOption {
 	}
 }
 
+// WithDebug causes commands and responses to be logged.
+func WithDebug() ControllerOption { return func(c *Controller) { c.debug = true } }
+
 // Write writes the given data to the instrument at the currently assigned GPIB
 // address.
 func (c *Controller) Write(p []byte) (n int, err error) {
@@ -135,6 +140,9 @@ func (c *Controller) Command(format string, a ...any) error {
 	// I'm calling the WriteString method, which does that as well?
 	cmd = fmt.Sprintf("%s%c", strings.TrimSpace(cmd), c.usbTerm)
 	// log.Printf("sending cmd (with terminator added): %#v", cmd)
+	if c.debug {
+		log.Printf("cmd %q (%x)", cmd, cmd)
+	}
 	_, err := fmt.Fprint(c.rw, cmd)
 	return err
 }
@@ -149,7 +157,9 @@ func (c *Controller) Command(format string, a ...any) error {
 // change the GPIB terminator use the SetGPIBTermination method.
 func (c *Controller) Query(cmd string) (string, error) {
 	cmd = fmt.Sprintf("%s%c", strings.TrimSpace(cmd), c.usbTerm)
-	// log.Printf("sending query cmd: %#v", cmd)
+	if c.debug {
+		log.Printf("query: %q", cmd)
+	}
 	_, err := fmt.Fprint(c.rw, cmd)
 	if err != nil {
 		return "", fmt.Errorf("error writing command: %s", err)
@@ -177,11 +187,15 @@ func (c *Controller) Query(cmd string) (string, error) {
 // are prepended. Addtionally, a new line is appended to act as the USB
 // termination character.
 func (c *Controller) QueryController(cmd string) (string, error) {
-	_, err := fmt.Fprintf(c.rw, "++%s%c", strings.ToLower(strings.TrimSpace(cmd)), c.usbTerm)
+	err := c.CommandController(cmd)
 	if err != nil {
 		return "", err
 	}
-	return bufio.NewReader(c.rw).ReadString(c.eotChar)
+	s, err := bufio.NewReader(c.rw).ReadString(c.eotChar)
+	if c.debug {
+		log.Printf("read data: %q", s)
+	}
+	return s, err
 }
 
 // CommandController sends the given command to the Prologix controller. To
@@ -189,7 +203,11 @@ func (c *Controller) QueryController(cmd string) (string, error) {
 // transmitting to the instrument over GPIB, two plus signs `++` are prepended.
 // Addtionally, a new line is appended to act as the USB termination character.
 func (c *Controller) CommandController(cmd string) error {
-	_, err := fmt.Fprintf(c.rw, "++%s%c", strings.ToLower(strings.TrimSpace(cmd)), c.usbTerm)
+	cmd = fmt.Sprintf("++%s%c", strings.ToLower(strings.TrimSpace(cmd)), c.usbTerm)
+	if c.debug {
+		log.Printf("cmd %q (%2x)", cmd, cmd)
+	}
+	_, err := c.rw.Write([]byte(cmd))
 	return err
 }
 
