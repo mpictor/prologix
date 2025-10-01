@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"log"
+	"math/rand"
 	"net/http"
 	"os"
 	"strings"
@@ -11,13 +12,7 @@ import (
 	"github.com/gotmc/prologix/lib/tek"
 )
 
-var data = []int{
-	10, 20, 15, 30, 25, 40, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-} // Example data
+var data []int
 
 var realData = tek.Points{
 	{X: 64, Y: 313.5}, {X: 97, Y: 313.5}, {X: 102, Y: 313.5}, {X: 104, Y: 313.5},
@@ -139,20 +134,30 @@ func updateData() digitizerData {
 		VLegend: "mV",
 		VMult:   10,
 	}
-	if n%2 == 0 {
-		dd.Coordinates = make([][2]int, len(data))
-		for i, v := range data {
-			add := time.Now().UnixNano() % 256
-			dd.Coordinates[i] = [2]int{i * 2, v + int(add) + i%8}
+	switch n {
+	case 1:
+		dd.Coordinates = make([][2]int, 256)
+		for i := range dd.Coordinates {
+			y := rand.Intn(512)
+			dd.Coordinates[i] = [2]int{i * 2, y}
+		}
+		return dd
+	case 2:
+		dd.Coordinates = make([][2]int, 256)
+		for i := range dd.Coordinates {
+			y := time.Now().UnixNano() % 512
+			dd.Coordinates[i] = [2]int{i * 2, int(y)}
+		}
+		return dd
+	default:
+		n = 0
+		// otherwise, use real (saved) data
+		dd.Coordinates = make([][2]int, 0, len(realData))
+		for _, p := range realData {
+			dd.Coordinates = append(dd.Coordinates, [2]int{int(p.X), int(p.Y)})
 		}
 		return dd
 	}
-	// otherwise, use real (saved) data
-	dd.Coordinates = make([][2]int, 0, len(realData))
-	for _, p := range realData {
-		dd.Coordinates = append(dd.Coordinates, [2]int{int(p.X), int(p.Y)})
-	}
-	return dd
 }
 
 func dataHandler(w http.ResponseWriter, r *http.Request) {
@@ -176,7 +181,7 @@ func main() {
 		}
 		http.FileServer(http.Dir("./")).ServeHTTP(w, r)
 	}))
-	addr := ":7912"
-	log.Printf("listening on %s...", addr)
+	addr := "localhost:7912"
+	log.Printf("listening on http://%s...", addr)
 	http.ListenAndServe(addr, nil)
 }
