@@ -15,7 +15,6 @@ import (
 
 // Controller models a GPIB controller-in-charge.
 type Controller struct {
-	Debug            bool // if true, print controller commands before sending
 	rw               io.ReadWriter
 	primaryAddr      int
 	hasSecondaryAddr bool
