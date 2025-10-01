@@ -1,3 +1,5 @@
+:warning: This is a temporary fork of `github.com/gotmc/prologix`. You probably want the upstream version instead.
+
 # prologix
 
 Go package to communicate with either a [Prologix][prologix-web] GPIB-ETHERNET
